@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>test</title>
+	<style>
+
+	html {
+		background-color: #483;
+	}
+
+	main {
+		display: flex;
+	}
+
+	.list {
+		overflow-y: scroll;
+		overflow-x: hidden;
+		width: 1010px;
+		height: 660px;
+		padding-top: 10px;
+		margin-top: 10px;
+		margin-right: 30px;
+		background-color: #eee;
+	}
+
+	.item {
+		width: 990px;
+		border-bottom: 3px solid #444;
+		padding-bottom: 15px;
+		margin-bottom: 15px;
+		margin-left: 10px;
+	}
+
+	#tmpl1, #tmpl2 {
+		display: none;
+	}
+
+	.old, .new {
+		width: 480px;
+	}
+
+	.settings {
+		display: flex;
+		justify-content: space-between;
+	}
+
+	input[type=checkbox] {
+		margin-left: 20px;
+		width: 20px;
+		height: 20px;
+		margin-right: 5px;
+	    position: relative;
+	    vertical-align: middle;
+	}
+
+	textarea {
+		resize: none;
+		margin-top: 5px;
+	}
+
+	.p {
+		margin: 5px 0;
+	}
+
+	h2 {
+		margin: 10px 0;
+	}
+
+	.new input[type=button] {
+		font-size: 18px;
+		margin-top: 5px;
+		padding-top: 4px;
+	}
+
+	.playlists {
+		color: white;
+	}
+
+	li {
+		margin-bottom: 3px;
+	}
+
+	.playlist_short {
+		margin-left: 10px;
+		width: 50px;
+		padding: 1px 2px;
+		background-color: #dfd;
+		border: none;
+	}
+
+	.playlist_short:focus {
+		outline: none;
+	}
+
+	</style>
+</head>
+<body>
+	<button onclick="authenticate().then(loadClient);">Authorize</button>
+	<button onclick="query2()">Next</button>
+	<main>
+		<div class="list">
+			<div id="tmpl1" class="item">
+				<div class="settings">
+					<div class="old">
+						<h2>Old</h2>
+						<p>Title:<br>
+						<p class="title_old"></p>
+						<p>Description:<br>
+						<p class="desc_old"></p>
+						<p>File:<br>
+						<p class="file"></p>
+					</div>
+					<div class="new">
+						<h2>New</h2>
+						<p class="p">Title:</p>
+						<textarea rows="2" cols="60" class="title_new"></textarea>
+						<p class="p">Description:</p>
+						<textarea rows="10" cols="60" class="desc_new"></textarea>
+						<p class="p">Playlists: <input type="text" size="10" class="i_playlists">
+						<input type="checkbox" class="hide" checked>hide</p>
+						<input type="button" value="OK" class="ok">
+						<input type="button" value="Old" class="reset">
+						<input type="button" value="Skip" class="skip">
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="playlists">
+			Playlists:
+			<ul>
+				<li id="tmpl2"><input type="text" class="playlist_short"></li>
+			</ul>
+		</div>
+	</main>
+<script src="https://apis.google.com/js/api.js"></script>
+<script>
+
+const template_video = document.getElementById('tmpl1');
+const template_playlist = document.getElementById('tmpl2');
+const list = document.querySelector('.list');
+const MODES = {
+	'BombRun': ['br', 'bombrun', 'bomb run', 'бр'],
+	'Hold The Flag': ['htf', 'hold the flag', 'hold the lags', 'holdtheflag', 'htf', 'htfjm2', 'jm2htf', 'флаг', 'флаги', 'удержание флага'],
+	'Pass The Bomb': ['ptb', 'pass the bomb', 'passthebomb'],
+	'Race' : ['race', 'knockout', 'knock out'],
+	'Stunt Show': ['ss', 'stunt show', 'stuntshow', 'stunts', 'air time', 'airtime'],
+	'Wrecking Match': ['wm', 'wrecking match', 'wreckingmatch', 'wrecking', 'derby'],
+};
+const JM2 = ['jm2', 'jm', 'jane\'s mod v2', 'janes mod v2', 'jane\'s mod', 'janes mod', 'jane\'s', 'janes', 'джанес', 'джанин'];
+const LINKS =
+	'Discord https://discord.com/invite/9r6Q28c\n' +
+	'Steam Chat https://s.team/chat/Oi5DvWlO\n' +
+	'Telegram Chat https://t.me/crashday\n' +
+	'Telegram https://t.me/crashdaynews\n' +
+	'VKontakte https://vk.com/crashday\n' +
+	'Website https://crashday.online';
+let SHORTCUTS = {
+	'Bomb Run': 'br',
+	'Bomb Run Redline Edition': 'brr',
+	'BombRun': 'br',
+	'BombRun Redline Edition': 'brr',
+	'Jane\'s Mod v2 Hold The Flag': 'jm',
+	'Jane\'s Mod v2 Hold The Flag Redline Edition': 'jmr',
+	'Jane\'s Mod v2 Hold The Flag Vanilla 1.0': 'jm',
+	'Hold The Flag': 'htf',
+	'Hold The Flag Redline Edition': 'htfr',
+	'Magics Bugs Incidents': 'bug',
+	'Multiplayer': 'mp',
+	'Pass The Bomb': 'ptb',
+	'Stunt Show Redline Edition': 'ssr',
+	'Wrecking Match Redline Edition': 'wmr',
+};
+let UPLOADS = '';
+let NPT = '';
+let PLAYLIST_IDS = {};
+let CATEGORY_IDS = {};
+let VIDEO_KINDS = {};
+
+function authenticate()
+{
+	return gapi.auth2.getAuthInstance()
+	    .signIn({scope: 'https://www.googleapis.com/auth/youtube'})
+	    .then(function() { console.log('Sign-in successful'); },
+	          function(err) { console.error('Error signing in', err); });
+}
+
+function loadClient()
+{
+	gapi.client.setApiKey('AIzaSyBJEZfPoUBr1urNJZ5EsqfqmpRpIL56lsw');
+	return gapi.client.load('https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest')
+	    .then(function() { console.log('GAPI client loaded for API'); query0() },
+	          function(err) { console.error('Error loading GAPI client for API', err); });
+}
+
+function query0()
+{
+	gapi.client.youtube.playlists.list({
+		'part': ['snippet', 'id'],
+		'channelId': 'UC-Dfb9Q5X_3_8b8dHCtNtkw',
+		'maxResults': 50
+	})
+		.then(function(response) { populatePlaylists(response); query1() },
+	          function(err) { console.error('Execute error', err); });
+}
+
+function query1()
+{
+	gapi.client.youtube.channels.list({
+		'part': ['contentDetails'],
+		'id': 'UC-Dfb9Q5X_3_8b8dHCtNtkw',
+	})
+	   .then(function(response) { UPLOADS = response['result']['items'][0]['contentDetails']['relatedPlaylists']['uploads'];},
+	          function(err) { console.error('Execute error', err); }); 
+}
+
+function query2()
+{
+	if (list.childElementCount > 50)
+		return;
+
+	gapi.client.youtube.playlistItems.list({
+		'part': ['snippet'],
+		'playlistId': UPLOADS,
+		'maxResults': 50,
+		'pageToken': NPT
+	})
+		.then(function(responsee) { query3(responsee); },
+          	  function(err) { console.error('Execute error', err); });
+}
+
+function query3(response)
+{
+	NPT = response['result']['nextPageToken'];
+	let ids = response['result']['items'].map(i => i['snippet']['resourceId']['videoId']);
+
+	gapi.client.youtube.videos.list({
+		'part': ['player', 'snippet', 'fileDetails', 'status'],
+		'id': [ids]
+	})
+		.then(function(responsee) {process(responsee); query2()},
+          	  function(err) { console.error('Execute error', err); });
+}
+
+function process(response)
+{
+	for (let video of response['result']['items'])
+	{
+		if (VIDEO_KINDS.hasOwnProperty(video['id']) || video['status']['privacyStatus'] != 'public')
+			continue;
+
+		let html = video['player']['embedHtml'];
+		let title = video['snippet']['title'];
+		let description = video['snippet']['description'].replaceAll('\n', '<br>');
+		let filename = video['fileDetails']['fileName'];
+		let uploadDate = video['snippet']['publishedAt'];
+
+		let item = template_video.cloneNode(true);
+		item.insertAdjacentHTML('afterbegin', html);
+		item.querySelector('.title_old').innerHTML = title;
+		item.querySelector('.desc_old').innerHTML = description;
+		item.querySelector('.file').innerHTML = filename;
+
+		let title_data = parseTitle(title, filename);
+
+		item.querySelector('.title_new').innerHTML = title_data['title'];
+		item.querySelector('.desc_new').innerHTML = setDescription(
+			title_data['players'], title_data['gamemodes'], title_data['jm2'], title_data['date'], uploadDate);
+		item.querySelector('.i_playlists').value = setPlaylists(
+			title_data['gamemodes'], title_data['jm2'], title_data['date'], uploadDate);
+
+		item.querySelector('.title_new').oninput = function() {
+			this.style.borderColor = this.value.length > 100 ? 'red' : 'black';
+			this.style.outlineColor = this.style.borderColor;
+		};
+		item.querySelector('.title_new').onfocusout = function() { this.style.outline = 'none' };
+		item.querySelector('.ok').onclick = function() { send(item); };
+		item.querySelector('.reset').onclick = function() { reset(item); };
+		item.querySelector('.skip').onclick = function() { list.removeChild(item); };
+
+		item.removeAttribute('id');
+		list.appendChild(item);
+
+		CATEGORY_IDS[video['id']] = video['snippet']['categoryId'];
+		VIDEO_KINDS[video['id']] = video['kind'];
+	}
+}
+
+
+function parseTitle(title, filename)
+{
+	let gamemodes = [];
+	let jm2 = false;
+	let teams = false;
+	let players = [];
+	let date = {};
+
+	let titlel = title.toLowerCase();
+
+	if (['audiosurf', 'train challenge', 'trainchallenge', 'tournament'].some((e) => titlel.includes(e)))
+		return {'title': title};
+
+
+	for (const [mode, names] of Object.entries(MODES))
+	{
+		for (let name of names)
+		{
+			let i = titlel.indexOf(name);
+			let seps = [' ', '/', '\\', ':', '-', ',', '(', ')', '[', ']', '+', '&', '#', '"'];
+			if (i != -1 && (i == 0 || seps.includes(titlel[i - 1])) && (i == titlel.length - name.length || seps.includes(titlel[i + name.length])))
+			{
+				gamemodes.push(mode);
+				break;
+			} 
+		}
+	}
+
+	for (let name of JM2)
+	{
+		let i = titlel.indexOf(name);
+		let seps = [' ', '/', '\\', ':', '-', ',', '(', ')', '[', ']'];
+		if (i != -1 && (i == 0 || seps.includes(title[i - 1])) && (i == title.length - name.length || seps.includes(title[i + name.length])))
+		{
+			jm2 = true;
+			break;
+		}
+	}
+
+	for (let name of ['team', 'teams'])
+	{
+		let i = titlel.indexOf(name);
+		let seps = [' ', '/', '\\', ':', '-', ',', '(', ')', '[', ']'];
+		if (i != -1 && (i == 0 || seps.includes(title[i - 1])) && (i == title.length - name.length || seps.includes(title[i + name.length])))
+		{
+			teams = true;
+			break;
+		}
+	}
+	if (!teams)
+		for (let i of [' vs. ', ' vs '])
+			for (let j of [' x ', ' & ', '&', ', ', ','])
+				if (titlel.indexOf(i) != -1 && titlel.indexOf(j) != -1)
+				{
+					teams = true;
+					break;
+				}			
+
+
+	if ((titlel.indexOf('camomile') != -1 || titlel.indexOf('aiden') != -1))
+	{
+		let player_seps = [' x ', ' vs ', ' vs. ', ' & ', '&', ', ', ','];
+		let general_seps = [' / ', ' | ', ': ', ' - '];
+		if (teams)
+		{
+			let team_seps = [' vs ', ' vs. '];
+			player_seps = player_seps.filter(ps => !team_seps.includes(ps));
+			let success = false;
+			for (let ts of team_seps)
+			{
+				let teams_ = title.split(ts);
+				if (teams_.length == 2)
+				{
+					for (let ps of player_seps)
+					{
+						let players_ = [teams_[0].split(ps), teams_[1].split(ps)]
+						if (players_[0].length > 1 || players_[1].length > 1)
+						{
+							players = truncate(players_[0].concat(players_[1]), general_seps);
+							success = true;
+							break;
+						}
+					}
+					if (success)
+						break;
+				}
+			}
+		}
+		if (players.length == 0)
+		{
+			for (let ps of player_seps)
+			{
+				players = title.split(ps);
+				if (players.length > 1)
+				{
+					players = truncate(players, general_seps);
+					break;
+				}
+			}
+		}
+		if (players.length < 2 || !players.some(p => ['camomile', 'aiden'].includes(p.toLowerCase())))
+			players = [];
+	}
+
+	let year, month, day;
+	for (let string of [titlel, gamemodes.length + players.length ? filename.toLowerCase() : ''])
+	{
+		let year_index = Math.max(string.indexOf('201'), string.indexOf('202'));
+		if (year_index != -1 && year_index + 3 < string.length && /\d/.test(string[year_index + 3]))
+		{
+			year = string.substring(year_index, year_index + 4);
+
+			if (year_index > 5 && string[year_index - 1] == string[year_index - 4])
+			{
+				month = string.substring(year_index - 3, year_index - 1);
+				day = string.substring(year_index - 6, year_index - 4);
+				break;
+			}
+			else if (year_index + 9 < string.length && string[year_index + 4] == string[year_index + 7])
+			{
+				month = string.substring(year_index + 5, year_index + 7);
+				day = string.substring(year_index + 8, year_index + 10);
+				break;
+			}
+			else if (year_index > 3 && /\d{4,}/.test(string.substring(year_index - 4, year_index)))
+			{
+				month = string.substring(year_index - 2, year_index);
+				day = string.substring(year_index - 4, year_index -2);
+				break;
+			}
+			else if (year_index + 7 < string.length && /\d{4,}/.test(string.substring(year_index + 4, year_index + 8)))
+			{
+				month = string.substring(year_index + 4, year_index + 6);
+				day = string.substring(year_index + 6, year_index + 8);
+				break;
+			}
+		}
+	}
+	if (year && month && day)
+		date = {'y': year, 'm': month, 'd': day};
+
+
+	console.log([gamemodes, jm2, teams, players, date]);
+
+	if ([gamemodes, players, date].every((e) => Object.keys(e).length == 0))
+		return {'title': title, 'jm2': jm2};
+	else
+	{
+		let new_title = '';
+		new_title += gamemodes.map((gm) => (gm == 'Race') ? 'Race' : MODES[gm][0].toUpperCase()).join(' x ');
+		if (teams)
+			new_title += ' Teams';
+		if (jm2)
+			new_title += ' JM2';
+		new_title += ' / ' + players.join(' x ');
+		if (date)
+			new_title += ` / ${date['d']}-${date['m']}-${date['y']}`;
+
+		if (new_title.length > 100)
+		{
+			new_title = gamemodes.map((gm) => (gm == 'race') ? 'Race' : MODES[gm][0].toUpperCase()).join(' x ');
+			if (teams)
+				new_title += ' Teams';
+			if (jm2)
+				new_title += ' JM2';
+			if (date)
+				new_title += ` / ${date['d']}-${date['m']}-${date['y']}`;
+
+			return {'title': new_title, 'gamemodes': gamemodes, 'jm2': jm2, 'players': players, 'date': date}
+		}
+		return {'title': new_title, 'gamemodes': gamemodes, 'jm2': jm2, 'date': date}
+	}
+
+	function truncate(arr, seps)
+	{
+		let gen_sep0 = seps.reduce((s1, s2) => arr[0].lastIndexOf(s1) > arr[0].lastIndexOf(s2) ? s1 : s2);
+
+		let i = arr[0].lastIndexOf(gen_sep0);
+		i = (i == -1) ? arr[0].lastIndexOf(' ') + 1 : arr[0].lastIndexOf(gen_sep0) + gen_sep0.length;
+
+		arr[0] = arr[0].substring(i);
+
+		let gen_sep1 = seps.reduce((s1, s2) => 
+			arr[arr.length - 1].indexOf(s1) < arr[arr.length - 1].indexOf(s2) ?
+      			arr[arr.length - 1].indexOf(s1) == -1 ? s2:s1 :
+      			arr[arr.length - 1].indexOf(s2) == -1 ? s1:s2);
+
+		let j = arr[arr.length - 1].indexOf(gen_sep1);
+		if (j == -1)
+			j = arr[arr.length - 1].indexOf(' ');
+		if (j == -1)
+			j = arr[arr.length - 1].length;
+
+		arr[arr.length - 1] = arr[arr.length - 1].substring(0, j);
+
+		return arr;
+	}
+}
+
+
+function setDescription(players, gamemodes, jm2, date, uploadDate)
+{
+	let description = '';
+
+	if (players !== undefined && players.length > 0)
+		description += players.join(' x ') + '\n';
+
+	if (date !== undefined && Object.keys(date).length == 3)
+		description += (Number(date['y']) * 10000 + Number(date['m']) * 100 + Number(date['d']) >= 20170810) ?
+			'Crashday Redline Edition\n' : 'Crashday Vanilla\n';
+
+	if (gamemodes !== undefined && gamemodes.length > 0)
+		description += gamemodes.join(' / ') + '\n';
+
+	if (jm2)
+		description += 'Jane\'s Mod v2\n';
+
+	description += (description.length > 0 ? '\n' : '') + LINKS;
+
+	return description;
+}
+
+
+function setPlaylists(gamemodes, jm2, date, pubDate)
+{
+	let re = (date !== undefined && Object.keys(date).length == 3) ?
+		Number(date['y']) * 10000 + Number(date['m']) * 100 + Number(date['d']) >= 20170810 :
+		Number(pubDate.substring(0, 4)) * 10000 + Number(pubDate.substring(5, 7)) * 100 + Number(pubDate.substring(8, 10)) >= 20170810;
+
+	if (gamemodes !== undefined && gamemodes.length > 0)
+	{
+		if (gamemodes.length > 1)
+			return SHORTCUTS['Multiplayer'] || '';
+
+		switch (gamemodes[0])
+		{
+			case 'Hold The Flag':
+
+				if (jm2)
+				{
+					if (re)
+						return SHORTCUTS['Jane\'s Mod v2 Hold The Flag Redline Edition'] || '';
+					else
+						return SHORTCUTS['Jane\'s Mod v2 Hold The Flag Vanilla 1.0'] || SHORTCUTS['Jane\'s Mod v2 Hold The Flag'] || '';
+				}
+				else
+				{
+					if (re)
+						return SHORTCUTS['Hold The Flag Redline Edition'] || '';
+					else
+						return SHORTCUTS['Hold The Flag'] || '';
+				}
+
+			case 'BombRun':
+
+				if (re)
+					return SHORTCUTS['Bomb Run Redline Edition'] || '';
+				else
+					return SHORTCUTS['Bomb Run'] || '';
+
+			case 'Stunt Show':
+
+				if (re)
+					return SHORTCUTS['Stunt Show Redline Edition'] || '';
+				else
+					return SHORTCUTS['Stunt Show'] || '';
+
+			case 'Wrecking Match':
+
+				if (re)
+					return SHORTCUTS['Wrecking Match Redline Edition'] || '';
+				else
+					return SHORTCUTS['Wrecking Match'] || '';
+		}
+	}
+	return '';
+}
+
+function send(item)
+{
+	let video_id = item.querySelector('iframe').src.substring(item.querySelector('iframe').src.lastIndexOf('/') + 1);
+	let reqbody1 = {
+		'part': ['snippet', 'status'],
+		'resource': {
+			'id': video_id,
+			'snippet': {
+				'title': item.querySelector('.title_new').value,
+				'description': item.querySelector('.desc_new').value,
+				'categoryId': CATEGORY_IDS[video_id]
+			},
+			'status': {'privacyStatus': item.querySelector('.hide').checked ? 'private' : 'public'}
+		}
+	}
+	console.log(reqbody1);
+
+	gapi.client.youtube.videos.update(reqbody1)
+		.then(function(response) { console.log('SUCCESS 1'); },
+          	  function(err) { alert('Error 1'); console.error('Execute error', err, reqbody1, ); return; });
+
+	let playlist = item.querySelector('.i_playlists').value;
+	if (playlist.length == 0)
+		return;
+
+	let pls = document.querySelector('ul').querySelectorAll('li');
+	pls = Array.from(pls).filter(li => playlist == SHORTCUTS[li.textContent] || playlist == li.textContent)
+
+	if (pls.length > 0)
+	{
+		let reqbody2 = {
+			'part': ['snippet'],
+			'resource': {
+				'snippet': {
+					"playlistId": PLAYLIST_IDS[pls[0].textContent],
+					"resourceId": {
+						"kind": VIDEO_KINDS[video_id],
+						"videoId": video_id
+					}
+				}
+			}
+		} 
+		console.log(reqbody2);
+
+		gapi.client.youtube.playlistItems.insert(reqbody2)
+			.then(function(response) { console.log('SUCCESS 2'); },
+          	  	  function(err) { alert('Error 2'); console.error('Execute error', err);});
+	}
+
+	list.removeChild(item);
+}
+
+
+function reset(item)
+{
+	item.querySelector('.title_new').value = item.querySelector('.title_old').innerHTML;
+	item.querySelector('.desc_new').value = item.querySelector('.desc_old').innerHTML.replaceAll('<br>', '\n');
+	item.querySelector('.hide').checked = false;
+	item.querySelector('.i_playlists').value = '';
+}
+
+
+function populatePlaylists(response)
+{
+	for (let title of Object.keys(SHORTCUTS))
+	{
+		let f = false;
+		for (let item of response['result']['items'])
+		{
+			if (title == item['snippet']['title'])
+			{
+				f = true;
+				break;
+			}
+		}
+		if (!f)
+			delete SHORTCUTS[title];
+	}
+
+	let ul = document.querySelector('ul');
+
+	for (let i = 0; i < response['result']['items'].length; i++)
+	{
+		let item = template_playlist.cloneNode(true);
+		let title = response['result']['items'][i]['snippet']['title'];
+
+		if (!SHORTCUTS.hasOwnProperty(title))
+			SHORTCUTS[title] = '';
+
+		item.innerHTML = title + item.innerHTML;
+		item.removeAttribute('id');
+		item.querySelector('.playlist_short').value = SHORTCUTS[title];
+		item.querySelector('.playlist_short').onchange = function() { SHORTCUTS[title] = item.querySelector('.playlist_short').value; };
+
+		ul.appendChild(item);
+	}
+
+	for (let item of response['result']['items'])
+		PLAYLIST_IDS[item['snippet']['title']] = item['id'];
+}
+
+
+function KeyPress(e)
+{
+	var evtobj = window.event? event : e;
+	var ae = document.activeElement;
+	if (evtobj.shiftKey && evtobj.ctrlKey && ae !== null)
+	{
+		let pos = ae.selectionStart;
+		if (ae.value.length > 0 && pos > 0)
+		{
+			switch (ae.value[pos - 1])
+			{
+				case 'a':
+					ae.value = ae.value.substring(0, pos) + 'mateurs5' + ae.value.substring(pos);
+					break;
+				case 'g':
+					ae.value = ae.value.substring(0, pos) + 'odsgarden' + ae.value.substring(pos);
+					break;
+				case 'p':
+					ae.value = ae.value.substring(0, pos) + 'rofessionals6' + ae.value.substring(pos);
+					break;
+				case 'p':
+					ae.value = ae.value.substring(0, pos - 1) + 'Jane\'s Mod v2' + ae.value.substring(pos);
+					break;
+				case 'c':
+					ae.value = ae.value.substring(0, pos - 1) + 'Camomile' + ae.value.substring(pos);
+					break;
+				case 'l':
+					ae.value = ae.value.substring(0, pos - 1) + LINKS + ae.value.substring(pos);
+					break;
+				case 'v':
+					ae.value = ae.value.substring(0, pos - 1) + 'Crashday Vanilla' + ae.value.substring(pos);
+					break;
+				case 'e':
+					if (ae.value.length > 1 && pos > 1 && ae.value[pos - 2] == 'r')
+						ae.value = ae.value.substring(0, pos - 2) + 'Crashday Redline Edition' + ae.value.substring(pos);
+					break;
+			}
+		}
+	}
+}
+
+
+gapi.load('client:auth2', function() {
+	gapi.auth2.init({
+		client_id: '327648438399-lcmoqp2cuvcjsm8rr4cre1fla5ngl4pi.apps.googleusercontent.com',
+		scope: 'https://www.googleapis.com/auth/youtube'
+	});
+});
+
+document.onkeydown = KeyPress;
+
+</script>
+</body>
+</html>
