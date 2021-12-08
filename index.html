@@ -576,10 +576,10 @@ function send(item)
 				'description': item.querySelector('.desc_new').value,
 				'categoryId': CATEGORY_IDS[video_id]
 			},
-			'status': {'privacyStatus': item.querySelector('.hide').checked ? 'private' : 'public'}
+			'status': {'privacyStatus': item.querySelector('.hide').checked ? 'unlisted' : 'public'}
 		}
 	}
-	console.log(reqbody1);
+	console.log("REQBODY ", reqbody1);
 
 	gapi.client.youtube.videos.update(reqbody1)
 		.then(function(response) { console.log('SUCCESS 1'); },
