@@ -517,7 +517,7 @@ function setPlaylists(gamemodes, jm2, date, pubDate)
 
 	if (gamemodes !== undefined && gamemodes.length > 0)
 	{
-		if (gamemodes.length > 1)
+		if (gamemodes.includes('Pass The Bomb') || gamemodes.includes('Stunt Show') || gamemodes.includes('Race'))
 			return SHORTCUTS['Multiplayer'] || '';
 
 		switch (gamemodes[0])
