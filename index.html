@@ -76,7 +76,8 @@
 		color: white;
 	}
 
-	li {
+	.playlists li {
+		color: #999;
 		margin-bottom: 3px;
 	}
 
@@ -109,6 +110,8 @@
 						<p class="desc_old"></p>
 						<p>File:<br>
 						<p class="file"></p>
+						<P>Playlists: <span class="current_playlist"></span><br>
+						<p>Status: <span class="status"></span></p>
 					</div>
 					<div class="new">
 						<h2>New</h2>
@@ -116,7 +119,7 @@
 						<textarea rows="2" cols="60" class="title_new"></textarea>
 						<p class="p">Description:</p>
 						<textarea rows="10" cols="60" class="desc_new"></textarea>
-						<p class="p">Playlists: <input type="text" size="10" class="i_playlists">
+						<p class="p">Playlist: <input type="text" size="10" class="i_playlists">
 						<input type="checkbox" class="hide" checked>hide</p>
 						<input type="button" value="OK" class="ok">
 						<input type="button" value="Old" class="reset">
@@ -171,8 +174,11 @@ let SHORTCUTS = {
 	'Wrecking Match Redline Edition': 'wmr',
 };
 let UPLOADS = '';
-let NPT = '';
-let PLAYLIST_IDS = {};
+let NPTvideos = '';
+let PLAYLIST_TITLES_TO_IDS = {};
+let PLAYLIST_IDS_TO_TITLES = {};
+let PLAYLISTS_OF_VIDEOS = {};
+let VIDEO_IDS_TO_PLITEMS = {};
 let CATEGORY_IDS = {};
 let VIDEO_KINDS = {};
 
@@ -188,7 +194,10 @@ function loadClient()
 {
 	gapi.client.setApiKey('AIzaSyBJEZfPoUBr1urNJZ5EsqfqmpRpIL56lsw');
 	return gapi.client.load('https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest')
-	    .then(function() { console.log('GAPI client loaded for API'); query0() },
+	    .then(function() {
+	    		  console.log('GAPI client loaded for API');
+	    		  query0();
+	    	  },
 	          function(err) { console.error('Error loading GAPI client for API', err); });
 }
 
@@ -199,8 +208,8 @@ function query0()
 		'channelId': 'UC-Dfb9Q5X_3_8b8dHCtNtkw',
 		'maxResults': 50
 	})
-		.then(function(response) { populatePlaylists(response); query1() },
-	          function(err) { console.error('Execute error', err); });
+		.then(function(response) { populatePlaylists(response); query1(); },
+	          function(err) { console.error('query0 error', err); });
 }
 
 function query1()
@@ -209,28 +218,85 @@ function query1()
 		'part': ['contentDetails'],
 		'id': 'UC-Dfb9Q5X_3_8b8dHCtNtkw',
 	})
-	   .then(function(response) { UPLOADS = response['result']['items'][0]['contentDetails']['relatedPlaylists']['uploads'];},
-	          function(err) { console.error('Execute error', err); }); 
+	   .then(function(response) {
+	   	          UPLOADS = response['result']['items'][0]['contentDetails']['relatedPlaylists']['uploads'];
+	   	          matchVideosToPlaylists();
+	   	      },
+	          function(err) { console.error('query1 error', err); }); 
 }
+
+function matchVideosToPlaylists()
+{
+	let NPTplaylists = {};
+	for (let playlistID of Object.keys(PLAYLIST_IDS_TO_TITLES))
+	{
+		NPTplaylists[playlistID] = '';
+		nextPl(playlistID);
+	}
+
+	function nextPl(playlistID)
+	{
+		if (NPTplaylists[playlistID] == ' ')
+		{
+			document.getElementById(PLAYLIST_IDS_TO_TITLES[playlistID]).style.color = 'white';
+			return;
+		}
+
+		gapi.client.youtube.playlistItems.list({
+			'part': ['snippet'],
+			'playlistId': playlistID,
+			'maxResults': 50,
+		'pageToken': NPTplaylists[playlistID]
+		})
+			.then(function(responsee) { match(responsee, playlistID); nextPl(playlistID); },
+          	  		function(err) { console.error('matchVideosToPlaylists error', err); });
+	}
+
+	function match(response, playlistID)
+	{
+		for (let item of response['result']['items'])
+		{
+			if (!PLAYLISTS_OF_VIDEOS.hasOwnProperty(item['snippet']['resourceId']['videoId']))
+			{
+				PLAYLISTS_OF_VIDEOS[item['snippet']['resourceId']['videoId']] = [];
+			}
+			if (!PLAYLISTS_OF_VIDEOS[item['snippet']['resourceId']['videoId']].includes(PLAYLIST_IDS_TO_TITLES[playlistID]))
+			{
+				PLAYLISTS_OF_VIDEOS[item['snippet']['resourceId']['videoId']].push(PLAYLIST_IDS_TO_TITLES[playlistID]);
+			}
+
+			VIDEO_IDS_TO_PLITEMS[PLAYLIST_IDS_TO_TITLES[playlistID]][item['snippet']['resourceId']['videoId']] = item['id'];
+		}
+		if (response['result'].hasOwnProperty('nextPageToken'))
+		{
+			NPTplaylists[playlistID] = response['result']['nextPageToken'];
+		}
+		else
+		{
+			NPTplaylists[playlistID] = ' ';
+		}
+	}
+}
+
 
 function query2()
 {
-	if (list.childElementCount > 50)
+	if (list.childElementCount > 20)
 		return;
 
 	gapi.client.youtube.playlistItems.list({
 		'part': ['snippet'],
 		'playlistId': UPLOADS,
-		'maxResults': 50,
-		'pageToken': NPT
+		'maxResults': 20,
+		'pageToken': NPTvideos
 	})
 		.then(function(responsee) { query3(responsee); },
-          	  function(err) { console.error('Execute error', err); });
+          	  function(err) { console.error('query2 error', err); });
 }
 
 function query3(response)
 {
-	NPT = response['result']['nextPageToken'];
+	NPTvideos = response['result']['nextPageToken'];
 	let ids = response['result']['items'].map(i => i['snippet']['resourceId']['videoId']);
 
 	gapi.client.youtube.videos.list({
@@ -238,14 +304,14 @@ function query3(response)
 		'id': [ids]
 	})
 		.then(function(responsee) {process(responsee); query2()},
-          	  function(err) { console.error('Execute error', err); });
+          	  function(err) { console.error('query3 error', err); });
 }
 
 function process(response)
 {
 	for (let video of response['result']['items'])
 	{
-		if (VIDEO_KINDS.hasOwnProperty(video['id']) || video['status']['privacyStatus'] != 'public')
+		if (VIDEO_KINDS.hasOwnProperty(video['id']))
 			continue;
 
 		let html = video['player']['embedHtml'];
@@ -253,12 +319,18 @@ function process(response)
 		let description = video['snippet']['description'].replaceAll('\n', '<br>');
 		let filename = video['fileDetails']['fileName'];
 		let uploadDate = video['snippet']['publishedAt'];
+		let playlists = PLAYLISTS_OF_VIDEOS[video['id']] || [];
+
+		if (video['status']['privacyStatus'] != 'public' && playlists.length == 1)
+			continue;
 
 		let item = template_video.cloneNode(true);
 		item.insertAdjacentHTML('afterbegin', html);
 		item.querySelector('.title_old').innerHTML = title;
 		item.querySelector('.desc_old').innerHTML = description;
 		item.querySelector('.file').innerHTML = filename;
+		item.querySelector('.current_playlist').innerHTML = (playlists).join(', ');
+		item.querySelector('.status').innerHTML = video['status']['privacyStatus'];
 
 		let title_data = parseTitle(title, filename);
 
@@ -310,7 +382,7 @@ function parseTitle(title, filename)
 			{
 				gamemodes.push(mode);
 				break;
-			} 
+			}
 		}
 	}
 
@@ -579,26 +651,39 @@ function send(item)
 			'status': {'privacyStatus': item.querySelector('.hide').checked ? 'unlisted' : 'public'}
 		}
 	}
-	console.log("REQBODY ", reqbody1);
-
 	gapi.client.youtube.videos.update(reqbody1)
 		.then(function(response) { console.log('SUCCESS 1'); },
           	  function(err) { alert('Error 1'); console.error('Execute error', err, reqbody1, ); return; });
 
-	let playlist = item.querySelector('.i_playlists').value;
-	if (playlist.length == 0)
-		return;
+	let playlist = item.querySelector('.i_playlists').value || ' ';
 
-	let pls = document.querySelector('ul').querySelectorAll('li');
-	pls = Array.from(pls).filter(li => playlist == SHORTCUTS[li.textContent] || playlist == li.textContent)
+	let newpls = document.querySelector('ul').querySelectorAll('li');
+	newpls = Array.from(newpls).filter(li => playlist == SHORTCUTS[li.textContent] || playlist == li.textContent);
+	newpls = newpls.map(li => li.textContent)[0] || '';
+	let curpls = item.querySelector('.current_playlist').textContent.split(', ');
+	curpls = curpls.filter(pl => pl != '');
 
-	if (pls.length > 0)
+	for (let pls of curpls)
+	{
+		if (newpls.length == 0 || pls != newpls)
+		{
+			gapi.client.youtube.playlistItems.delete({
+				'id': VIDEO_IDS_TO_PLITEMS[pls][video_id]
+			})
+				.then(function(response) { console.log('SUCCESS 2.1'); },
+          	  	      function(err) { alert('Error 2'); console.error('Execute error', err); });
+		}
+		else
+			newpls = '';
+	}
+
+	if (newpls.length > 0)
 	{
 		let reqbody2 = {
 			'part': ['snippet'],
 			'resource': {
 				'snippet': {
-					"playlistId": PLAYLIST_IDS[pls[0].textContent],
+					"playlistId": PLAYLIST_TITLES_TO_IDS[newpls],
 					"resourceId": {
 						"kind": VIDEO_KINDS[video_id],
 						"videoId": video_id
@@ -606,11 +691,9 @@ function send(item)
 				}
 			}
 		} 
-		console.log(reqbody2);
-
 		gapi.client.youtube.playlistItems.insert(reqbody2)
-			.then(function(response) { console.log('SUCCESS 2'); },
-          	  	  function(err) { alert('Error 2'); console.error('Execute error', err);});
+			.then(function(response) { console.log('SUCCESS 2.2'); },
+          	  	  function(err) { alert('Error 2'); console.error('Execute error', err, reabody2); });
 	}
 
 	list.removeChild(item);
@@ -654,7 +737,7 @@ function populatePlaylists(response)
 			SHORTCUTS[title] = '';
 
 		item.innerHTML = title + item.innerHTML;
-		item.removeAttribute('id');
+		item.setAttribute('id', title);
 		item.querySelector('.playlist_short').value = SHORTCUTS[title];
 		item.querySelector('.playlist_short').onchange = function() { SHORTCUTS[title] = item.querySelector('.playlist_short').value; };
 
@@ -662,7 +745,11 @@ function populatePlaylists(response)
 	}
 
 	for (let item of response['result']['items'])
-		PLAYLIST_IDS[item['snippet']['title']] = item['id'];
+	{
+		PLAYLIST_TITLES_TO_IDS[item['snippet']['title']] = item['id'];
+		PLAYLIST_IDS_TO_TITLES[item['id']] = item['snippet']['title'];
+		VIDEO_IDS_TO_PLITEMS[item['snippet']['title']] = {};
+	}
 }
 
 
