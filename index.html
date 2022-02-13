@@ -97,7 +97,7 @@
 </head>
 <body>
 	<button onclick="authenticate().then(loadClient);">Authorize</button>
-	<button onclick="alert('COUNT: ' + Object.keys(PLAYLISTS_OF_VIDEOS).length); query2()">Next</button>
+	<button onclick="alertt(); query2();">Next</button>
 	<main>
 		<div class="list">
 			<div id="tmpl1" class="item">
@@ -137,6 +137,7 @@
 <script src="https://apis.google.com/js/api.js"></script>
 <script>
 
+let flag = true;
 const template_video = document.getElementById('tmpl1');
 const template_playlist = document.getElementById('tmpl2');
 const list = document.querySelector('.list');
@@ -180,6 +181,15 @@ let PLAYLISTS_OF_VIDEOS = {};
 let VIDEO_IDS_TO_PLITEMS = {};
 let CATEGORY_IDS = {};
 let VIDEO_KINDS = {};
+
+function alertt()
+{
+	if (flag)
+	{
+		alert('COUNT: ' + Object.keys(PLAYLISTS_OF_VIDEOS).length);
+		flag = false;
+	}
+}
 
 function authenticate()
 {
