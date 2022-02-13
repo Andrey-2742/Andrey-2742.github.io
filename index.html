@@ -97,7 +97,7 @@
 </head>
 <body>
 	<button onclick="authenticate().then(loadClient);">Authorize</button>
-	<button onclick="query2()">Next</button>
+	<button onclick="alert('COUNT: ' + Object.keys(PLAYLISTS_OF_VIDEOS).length); query2()">Next</button>
 	<main>
 		<div class="list">
 			<div id="tmpl1" class="item">
@@ -186,7 +186,7 @@ function authenticate()
 	return gapi.auth2.getAuthInstance()
 	    .signIn({scope: 'https://www.googleapis.com/auth/youtube'})
 	    .then(function() { console.log('Sign-in successful'); },
-	          function(err) { console.error('Error signing in', err); });
+	          function(err) { alert('Error signing in'); console.error('Error signing in', err); });
 }
 
 function loadClient()
@@ -197,7 +197,10 @@ function loadClient()
 	    		  console.log('GAPI client loaded for API');
 	    		  query0();
 	    	  },
-	          function(err) { console.error('Error loading GAPI client for API', err); });
+	          function(err) {
+	          	alert('Error loading GAPI client');
+	          	console.error('Error loading GAPI client for API', err);
+	          });
 }
 
 function query0()
@@ -208,7 +211,7 @@ function query0()
 		'maxResults': 50
 	})
 		.then(function(response) { populatePlaylists(response); query1(); },
-	          function(err) { console.error('query0 error', err); });
+	          function(err) { alert('query0 error'); console.error('query0 error', err); });
 }
 
 function query1()
@@ -221,7 +224,7 @@ function query1()
 	   	          UPLOADS = response['result']['items'][0]['contentDetails']['relatedPlaylists']['uploads'];
 	   	          matchVideosToPlaylists();
 	   	      },
-	          function(err) { console.error('query1 error', err); }); 
+	          function(err) { alert('query1 error'); console.error('query1 error', err); }); 
 }
 
 function matchVideosToPlaylists()
@@ -248,7 +251,10 @@ function matchVideosToPlaylists()
 		'pageToken': NPTplaylists[playlistID]
 		})
 			.then(function(responsee) { match(responsee, playlistID); nextPl(playlistID); },
-          	  		function(err) { console.error('matchVideosToPlaylists error', err); });
+          	  		function(err) {
+          	  			alert('matchVideosToPlaylists error');
+          	  			console.error('matchVideosToPlaylists error', err);
+          	  		});
 	}
 
 	function match(response, playlistID)
@@ -280,17 +286,17 @@ function matchVideosToPlaylists()
 
 function query2()
 {
-	if (list.childElementCount > 20)
+	if (list.childElementCount > 50)
 		return;
 
 	gapi.client.youtube.playlistItems.list({
 		'part': ['snippet'],
 		'playlistId': UPLOADS,
-		'maxResults': 20,
+		'maxResults': 50,
 		'pageToken': NPTvideos
 	})
 		.then(function(responsee) { query3(responsee); },
-          	  function(err) { console.error('query2 error', err); });
+          	  function(err) { alert('query2 error'); console.error('query2 error', err); });
 }
 
 function query3(response)
@@ -303,7 +309,7 @@ function query3(response)
 		'id': [ids]
 	})
 		.then(function(responsee) {process(responsee); query2()},
-          	  function(err) { console.error('query3 error', err); });
+          	  function(err) { alert('query3 error'); console.error('query3 error', err); });
 }
 
 function process(response)
